@@ -526,6 +526,8 @@ const breakEvenHint = $('breakEvenHint');
 /* ===================== 运输方式 ===================== */
 const ALL_TRANSPORTS = ['lingdan','zhengche','qiyun','sanzhi'];
 const TRANSPORT_LABEL = { lingdan:'零担', zhengche:'整车', qiyun:'汽运', sanzhi:'三志汽运' };
+// 必须在函数调用之前声明（避免 TDZ）
+let _refreshing = false;
 function refreshTransportOptions() {
   if (_refreshing) return;
   _refreshing = true;
@@ -548,6 +550,17 @@ const SALES_KEY = 'logistics_sales_names_v1';
 let records = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
 let salesNames = JSON.parse(localStorage.getItem(SALES_KEY) || '[]');
 let priceTable = getPriceTable();
+// 初始化时强制刷新价格表结构（修复旧缓存导致单价取不到的问题）
+(function initPriceTable() {
+  const fresh = DEFAULT_PRICE_TABLE;
+  for (const r in fresh) {
+    if (!priceTable[r]) priceTable[r] = {};
+    for (const k in fresh[r]) {
+      priceTable[r][k] = fresh[r][k];
+    }
+  }
+  savePriceTable(priceTable);
+})();
 function persist() { localStorage.setItem(STORAGE_KEY, JSON.stringify(records)); }
 function persistSales() { localStorage.setItem(SALES_KEY, JSON.stringify(salesNames)); }
 
@@ -570,18 +583,22 @@ document.addEventListener('click', e => { if (!e.target.closest('.form-group')) 
 function getClassPrice(route, cls, aSupplier) {
   const t = priceTable[route];
   if (!t) return 0;
-  if (cls === 'A' && DUAL_A_ROUTES.includes(route) && typeof t.A === 'object') {
-    return aSupplier === 'shiyuan' ? (t.A.shiyuan || 0) : (t.A.qichen || 0);
+  if (cls === 'A' && typeof t.A === 'object') {
+    // 双A供应商线路按选择取值，其他线路取 qichen（或任意一个有效值）
+    if (DUAL_A_ROUTES.includes(route)) {
+      return aSupplier === 'shiyuan' ? (t.A.shiyuan || 0) : (t.A.qichen || 0);
+    }
+    return t.A.qichen || t.A.shiyuan || 0;
   }
   return t[cls] || 0;
 }
 function matchClass(ratio) {
   if (!isFinite(ratio) || ratio <= 0) return null;
-  if (ratio <= 1.5) return 'A';
-  if (ratio <= 2)   return 'B';
-  if (ratio <= 2.5) return 'C';
-  if (ratio <= 3)   return 'D';
-  if (ratio <= 4)   return 'E';
+  if (ratio <= 1)   return 'A';
+  if (ratio <= 2.5) return 'B';
+  if (ratio <= 4)   return 'C';
+  if (ratio <= 5.5) return 'D';
+  if (ratio <= 7)   return 'E';
   return 'F';
 }
 /* 超方加价：每吨占方（比重）超过 9 时，货类单价需加上超出部分 × 30 元/吨 */
@@ -605,7 +622,6 @@ function getTransportKey() {
 function num(id, def) { const v = parseFloat($(id).value); return isNaN(v) ? (def === undefined ? 0 : def) : v; }
 
 /* ===================== 界面联动 ===================== */
-let _refreshing = false;
 function updateTransportUI() {
   const t = transportSelect.value, r = routeSelect.value;
   if (!_refreshing) { _refreshing = true; refreshTransportOptions(); _refreshing = false; }
@@ -665,26 +681,36 @@ function recalc() {
 
   /* ---- 零担/汽运：比重 + 货类 ---- */
   let ratio = 0, cls = null, classPrice = 0, zhuangcheCost = 0, serviceFee = 0, followFee = 0;
-  if ((transport === 'lingdan' || transport === 'qiyun') && weight > 0) {
+  // ---- 零担/汽运：比重 + 货类匹配（必须在前面，所有运输方式通用） ----
+  ratio = 0; cls = null; classPrice = 0; zhuangcheCost = 0; serviceFee = 0;
+  if (weight > 0 && volume > 0) {
     ratio = volume / weight;
     cls = matchClass(ratio);
-    classPrice = getClassPriceActual(route, ratio, jinanASelect.value);
-    zhuangcheCost = classPrice * weight;
-    serviceFee = SERVICE_FEE_PER_TON * weight;
+    if (transport === 'lingdan' || transport === 'qiyun') {
+      classPrice = getClassPriceActual(route, ratio, jinanASelect.value);
+      zhuangcheCost = classPrice * weight;
+      serviceFee = SERVICE_FEE_PER_TON * weight;
+    }
   }
   if (transport === 'lingdan' || transport === 'qiyun') {
     ratioDisplay.value = (weight > 0 && volume > 0) ? ratio.toFixed(2) + ' 方/吨' : '';
     if (cls && weight > 0 && volume > 0) {
-      let priceLabel = cls + '类 ' + classPrice.toFixed(2) + ' 元/吨';
+      let p = classPrice;
+      // 兜底：单价取不到时，从默认价格表取
+      if ((!p || typeof p !== 'number') && typeof DEFAULT_PRICE_TABLE !== 'undefined' && DEFAULT_PRICE_TABLE[route] && DEFAULT_PRICE_TABLE[route][cls]) {
+        p = DEFAULT_PRICE_TABLE[route][cls];
+      }
+      // 确保 p 是数字（处理济南 A 类对象）
+      if (cls === 'A' && typeof p === 'object' && p !== null) {
+        p = (jinanASelect.value === 'shiyuan') ? (p.shiyuan || 0) : (p.qichen || 0);
+      }
+      p = Number(p) || 0;
+      let priceLabel = cls + '类 ' + p.toFixed(0) + ' 元/吨';
       const sur = getOverRatioSurcharge(ratio);
-      if (sur > 0) priceLabel += '（含超方加价 ' + sur.toFixed(2) + ' 元/吨）';
+      if (sur > 0) priceLabel += '（超方+' + sur.toFixed(0) + '）';
       classDisplay.value = priceLabel;
     } else if (weight > 0 && volume > 0) {
-      // 比重超出 F 类上限（>4）仍统一归 F 类，不应出现匹配不上
-      let priceLabel = cls + '类 ' + classPrice.toFixed(2) + ' 元/吨';
-      const sur = getOverRatioSurcharge(ratio);
-      if (sur > 0) priceLabel += '（含超方加价 ' + sur.toFixed(2) + ' 元/吨）';
-      classDisplay.value = priceLabel;
+      classDisplay.value = '匹配货类';
     } else {
       classDisplay.value = '';
     }
