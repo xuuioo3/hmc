@@ -1,0 +1,1065 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>业务利润计算</title>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  background: #f0f2f5; color: #333; padding: 16px 12px 100px; min-height: 100vh;
+}
+.container { max-width: 640px; margin: 0 auto; }
+h1 { font-size: 22px; text-align: center; margin-bottom: 16px; color: #1a3c6e; letter-spacing: 1px; }
+.step-card {
+  background: #fff; border-radius: 12px; padding: 18px 16px; margin-bottom: 16px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+}
+.step-title {
+  font-size: 15px; font-weight: 700; color: #1a3c6e; margin-bottom: 12px;
+  display: flex; align-items: center; gap: 8px;
+}
+.step-title .badge {
+  background: #1a3c6e; color: #fff; font-size: 11px; border-radius: 50%;
+  width: 22px; height: 22px; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.form-row { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 10px; }
+.form-group { flex: 1 1 calc(50% - 10px); min-width: 120px; position: relative; }
+.form-group.full { flex: 1 1 100%; }
+.form-group label { display: block; font-size: 13px; font-weight: 500; color: #555; margin-bottom: 4px; }
+.form-group input, .form-group select {
+  width: 100%; padding: 10px 12px; border: 1px solid #d0d5dd; border-radius: 8px;
+  font-size: 14px; background: #fff; transition: border-color 0.2s; appearance: none;
+}
+.form-group input:focus, .form-group select:focus {
+  outline: none; border-color: #1a3c6e; box-shadow: 0 0 0 2px rgba(26,60,110,0.08);
+}
+.form-group input[readonly] { background: #f5f6f8; color: #888; }.required::after { content: " *"; color: #e74c3c; }
+.inline-hint { font-size: 12px; color: #999; margin-top: 2px; }
+.divider { height: 1px; background: #eaeef2; margin: 14px 0; }
+
+.params-box {
+  background: #fafbfc; border: 1px solid #e2e8f0; border-radius: 10px;
+  padding: 12px 14px; margin-bottom: 12px;
+}
+.params-box .pb-title { font-size: 13px; font-weight: 600; color: #64748b; margin-bottom: 10px; }
+
+.cost-group {
+  background: #fafbfc; border: 1px solid #e2e8f0; border-radius: 10px;
+  padding: 12px 14px; margin-bottom: 12px;
+}
+.cost-group-title { font-size: 13px; font-weight: 600; color: #64748b; margin-bottom: 10px; }
+.cost-group .form-row { margin-bottom: 0; }
+.cost-group .form-group { margin-bottom: 8px; }
+.cost-group .form-group:last-child { margin-bottom: 0; }
+
+.result-area { background: #f8faff; border-radius: 12px; padding: 16px; margin-top: 4px; }
+.result-row {
+  display: flex; justify-content: space-between; padding: 6px 0; font-size: 14px;
+  border-bottom: 1px dashed #e0e6ed;
+}
+.result-row:last-child { border-bottom: none; }
+.result-row.total-cost { font-weight: 600; color: #c0392b; }
+.result-row.revenue { font-weight: 600; color: #1a7a3a; }
+.result-row.profit {
+  font-size: 17px; font-weight: 700; padding: 10px 0 4px;
+  border-top: 2px solid #1a3c6e; margin-top: 6px;
+}
+.profit.positive { color: #1a7a3a; }
+.profit.negative { color: #c0392b; }
+
+.be-box {
+  background: #fff8e6; border: 1px solid #f0d68a; border-radius: 10px;
+  padding: 12px 14px; margin-top: 12px;
+}
+.be-row { display: flex; justify-content: space-between; align-items: center; font-size: 14px; }
+.be-row + .be-row { margin-top: 6px; }
+.be-row .label { font-weight: 600; color: #7a5c00; }
+.be-row .value { font-weight: 700; color: #d48806; font-size: 15px; }
+.be-hint { font-size: 12px; color: #9a7b2e; margin-top: 6px; }
+
+.cost-detail-toggle { font-size: 13px; color: #1a3c6e; cursor: pointer; user-select: none; margin-top: 8px; display: inline-block; }
+.cost-detail { display: none; margin-top: 8px; background: #fff; border-radius: 8px; padding: 10px 14px; border: 1px solid #e0e6ed; }
+.cost-detail.show { display: block; }
+.cost-detail .item { display: flex; justify-content: space-between; font-size: 13px; padding: 4px 0; color: #555; }
+
+.btn-row { display: flex; gap: 10px; flex-wrap: wrap; }
+.action-btn {
+  padding: 11px 16px; border: none; border-radius: 8px; font-size: 14px; cursor: pointer;
+  transition: background 0.2s; text-align: center; flex: 1 1 auto; white-space: nowrap;
+}
+.btn-primary { background: #1a3c6e; color: #fff; }
+.btn-primary:hover { background: #15325a; }
+.btn-outline { background: #fff; border: 1px solid #d0d5dd; color: #555; }
+.btn-outline:hover { background: #f5f6f8; }
+
+.suggestions { position: absolute; top: 100%; left: 0; right: 0; background: #fff; border: 1px solid #d0d5dd; border-radius: 8px; max-height: 180px; overflow-y: auto; z-index: 50; display: none; box-shadow: 0 4px 12px rgba(0,0,0,0.1); margin-top: 2px; }
+.suggestions.show { display: block; }
+.suggestions .item { padding: 9px 12px; font-size: 14px; cursor: pointer; border-bottom: 1px solid #f0f2f5; }
+.suggestions .item:hover { background: #f0f4fa; }
+.suggestions .item:last-child { border-bottom: none; }
+
+.tabs { display: flex; gap: 6px; margin-bottom: 14px; }
+.tab { padding: 8px 16px; border-radius: 20px; background: #e8edf4; font-size: 13px; cursor: pointer; border: none; color: #555; font-weight: 500; transition: all 0.2s; }
+.tab.active { background: #1a3c6e; color: #fff; }
+.summary-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.summary-table th { background: #f0f4f8; padding: 9px 8px; text-align: left; font-weight: 600; border-bottom: 2px solid #d0d5dd; }
+.summary-table td { padding: 8px; border-bottom: 1px solid #eaeef2; }
+.summary-table .pos { color: #1a7a3a; font-weight: 600; }
+.summary-table .neg { color: #c0392b; font-weight: 600; }
+.total-line { display: flex; justify-content: space-between; padding: 10px 8px; font-weight: 700; border-top: 2px solid #1a3c6e; margin-top: 6px; font-size: 14px; }
+.record-item { background: #fff; border: 1px solid #eaeef2; border-radius: 10px; padding: 12px 14px; margin-bottom: 10px; position: relative; }
+.record-item .top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+.record-item .name { font-weight: 600; font-size: 14px; }
+.record-item .profit-tag { font-size: 13px; font-weight: 600; padding: 2px 8px; border-radius: 12px; }
+.record-item .profit-tag.p { background: #e6f7ec; color: #1a7a3a; }
+.record-item .profit-tag.n { background: #fdecea; color: #c0392b; }
+.record-item .meta { font-size: 12px; color: #888; line-height: 1.5; padding-right: 40px; }
+.record-item .del { position: absolute; right: 12px; bottom: 12px; font-size: 12px; color: #e74c3c; cursor: pointer; padding: 4px 8px; border-radius: 6px; }
+.record-item .del:hover { background: #fdecea; }
+.empty-tip { text-align: center; color: #aaa; padding: 30px 0; font-size: 14px; }
+.chip-group { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
+.chip { padding: 7px 14px; border-radius: 18px; background: #e8edf4; font-size: 13px; cursor: pointer; border: none; color: #555; }
+.chip.active { background: #1a3c6e; color: #fff; }
+.footer-note { text-align: center; font-size: 12px; color: #aaa; margin-top: 28px; padding: 14px 0; border-top: 1px solid #e0e6ed; line-height: 1.7; }
+
+.modal-mask { position: fixed; inset: 0; background: rgba(0,0,0,0.45); display: none; align-items: center; justify-content: center; z-index: 100; padding: 16px; }
+.modal-mask.show { display: flex; }
+.modal { background: #fff; border-radius: 14px; width: 100%; max-width: 560px; max-height: 88vh; display: flex; flex-direction: column; overflow: hidden; }
+.modal.modal-lg { max-width: 620px; }
+.modal-title { padding: 16px 20px; font-size: 16px; font-weight: 700; color: #1a3c6e; border-bottom: 1px solid #eaeef2; display: flex; justify-content: space-between; align-items: center; }
+.modal-close { background: none; border: none; font-size: 22px; color: #999; cursor: pointer; line-height: 1; }
+.modal-body { padding: 20px; overflow-y: auto; }
+.modal-body.no-pad { padding: 0; }
+.modal-footer { padding: 12px 20px; border-top: 1px solid #eaeef2; display: flex; gap: 10px; justify-content: flex-end; }
+.modal-err { color: #c0392b; font-size: 13px; margin-top: 8px; min-height: 18px; }
+.pe-scroll { max-height: 62vh; overflow-y: auto; padding: 20px; }
+.pe-route-block { margin-bottom: 22px; }
+.pe-route-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+.pe-route-head > span:first-child { font-weight: 700; color: #1a3c6e; font-size: 15px; }
+.pe-route-head .avail { font-size: 11px; color: #999; }
+.pe-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.pe-cell label { display: block; font-size: 12px; color: #666; margin-bottom: 3px; }
+.pe-cell input { width: 100%; padding: 8px 10px; border: 1px solid #d0d5dd; border-radius: 7px; font-size: 14px; }
+.pe-cell input.invalid { border-color: #e74c3c; background: #fdecea; }
+.pe-tip { font-size: 12px; color: #888; margin-top: 8px; line-height: 1.6; }
+.collapsible-group .cost-group-title { cursor: pointer; user-select: none; display: flex; justify-content: space-between; align-items: center; }
+.collapsible-group .cost-group-title .arrow { font-size: 12px; color: #1a3c6e; transition: transform 0.2s; }
+.collapsible-group.collapsed .cost-group-title .arrow { transform: rotate(-90deg); }
+.collapsible-group.collapsed .cg-body { display: none; }
+.zc-total-row label { font-weight:700; color:#1d4ed8; }
+.zc-total-row input { background:#eff6ff; border-color:#93c5fd; font-weight:700; color:#1d4ed8; }
+.cost-detail .item.zc-only, .cost-detail .item.lingdan-only { display:none; }
+.cost-detail.zc-mode .item.zc-only { display:flex; }
+.cost-detail.lingdan-mode .item.lingdan-only { display:flex; }
+/* 整车装车成本下拉（嵌在成本明细内） */
+.cost-sub-group { background:#f7faff; border-left:3px solid #1d4ed8; padding:9px 12px; cursor:pointer; user-select:none; align-items:center; }
+.cost-sub-group .arrow { font-size:11px; color:#1d4ed8; margin-left:6px; transition:transform 0.2s; display:inline-block; }
+.cost-sub-group:not(.collapsed) .arrow { transform:rotate(180deg); }
+.cost-sub-body { display:none; padding-left:14px; }
+.cost-sub-body .sub-item { font-size:13px; color:#555; }
+.cost-detail.zc-mode .cost-sub-body { display:block; }
+.cost-detail.zc-mode .cost-sub-group.collapsed + .cost-sub-body { display:none; }
+.btn-ghost { background: none; border: 1px dashed #d0d5dd; color: #bbb; font-size: 12px; padding: 6px 14px; border-radius: 6px; cursor: pointer; }
+.btn-ghost:hover { color: #888; border-color: #bbb; }
+@media (max-width: 520px) {
+  .form-group { flex: 1 1 100%; }
+  .pe-grid { grid-template-columns: repeat(2, 1fr); }
+  .pe-route-head { flex-direction: column; align-items: flex-start; gap: 4px; }
+}
+</style>
+</head>
+<body>
+<div class="container">
+
+<h1>✅业务利润计算</h1>
+
+<!-- 第1步：基本信息 -->
+<div class="step-card">
+  <div class="step-title"><span class="badge">1</span> 基本信息</div>
+  <div class="form-row">
+    <div class="form-group">
+      <label>线路</label>
+      <select id="routeSelect">
+        <option value="zibo">淄博 → 广州</option>
+        <option value="jinan">济南 → 广州</option>
+        <option value="shijiazhuang">石家庄 → 广州</option>
+        <option value="cangzhou">沧州 → 广州</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>运输方式</label>
+      <select id="transportSelect"></select>
+    </div>
+  </div>
+  <div class="form-row">
+    <div class="form-group full">
+      <label>业务员</label>
+      <input type="text" id="salesInput" placeholder="输入业务员姓名" autocomplete="off">
+      <div class="suggestions" id="salesSuggestions"></div>
+    </div>
+  </div>
+  <div class="form-row" id="chezhuangWrap" style="display:none;">
+    <div class="form-group full">
+      <label>整车类型</label>
+      <select id="chezhuangType">
+        <option value="普通整车">普通整车</option>
+        <option value="整车拆装">整车拆装</option>
+      </select>
+    </div>
+  </div>
+</div>
+
+<!-- 第2步：运输参数 -->
+<div class="step-card">
+  <div class="step-title"><span class="badge">2</span> 运输参数</div>
+
+  <!-- 重量/体积：所有运输方式共用 -->
+  <div class="params-box" id="globalParamsBox">
+    <div class="pb-title">📦 货物参数</div>
+    <div class="form-row">
+      <div class="form-group"><label class="required">重量（吨）</label><input type="number" step="0.001" min="0" id="weightInput" placeholder="必填，不能为0"></div>
+      <div class="form-group"><label class="required">体积（m³）</label><input type="number" step="0.01" min="0" id="volumeInput" placeholder="必填，不能为0"></div>
+    </div>
+    <div class="form-row" id="ratioRow" style="display:none;">
+      <div class="form-group full"><label>每吨占方</label><input type="text" id="ratioDisplay" readonly placeholder="自动计算"></div>
+      <div class="form-group full"><label>匹配货类</label><input type="text" id="classDisplay" readonly placeholder="自动匹配"></div>
+    </div>
+  </div>
+
+  <!-- 零担/汽运 -->
+  <div id="lingdanQiyunArea" style="display:none;">
+    <div class="form-row" id="jinanAContainer" style="display:none;">
+      <div class="form-group full"><label>济南A类供应商</label>
+        <select id="jinanASelect"><option value="qichen">启辰 295</option><option value="shiyuan">实源 315</option></select>
+      </div>
+    </div>
+  </div>
+
+  <!-- 汽运装卸费 -->
+  <div id="qiyunExtraArea" style="display:none;">
+    <div class="cost-group">
+      <div class="cost-group-title">🚚 汽运费用</div>
+      <div class="form-row"><div class="form-group full"><label>装卸费</label><input type="number" step="0.01" min="0" id="qyZhuangxieInput" placeholder="输入装卸费"></div></div>
+    </div>
+  </div>
+
+  <!-- 三志汽运 -->
+  <div id="sanzhiArea" style="display:none;">
+    <div class="cost-group">
+      <div class="cost-group-title">🚚 三志汽运</div>
+      <div class="form-row">
+        <div class="form-group"><label>货物类型</label>
+          <select id="sanzhiTypeSelect"><option value="normal">普通货物（350元/吨）</option><option value="cotton">棉纱（450元/吨）</option></select>
+        </div>
+        <div class="form-group"><label>重量（吨）</label><input type="number" step="0.001" min="0" id="szWeightInput" placeholder="请输入重量"></div>
+      </div>
+      <div class="form-row"><div class="form-group full"><label>装卸费</label><input type="number" step="0.01" min="0" id="szZhuangxieInput" placeholder="输入装卸费"></div></div>
+    </div>
+  </div>
+
+  <!-- 整车 -->
+  <div id="zhengcheArea" style="display:none;">
+    <div class="cost-group">
+      <div class="cost-group-title">🚚 整车费用明细</div>
+      <div class="form-row">
+        <div class="form-group"><label>大车费（基础）</label><input type="number" step="0.01" min="0" id="zcDacheInput" placeholder="输入大车费"></div>
+        <div class="form-group"><label>直送费</label><input type="number" step="0.01" min="0" id="zcZhisongInput" placeholder="输入直送费"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>掏箱费</label><input type="number" step="0.01" min="0" id="zcTaoxiangInput" placeholder="输入掏箱费"></div>
+        <div class="form-group"><label>装卸费</label><input type="number" step="0.01" min="0" id="zcZhuangxieInput" placeholder="输入装卸费"></div>
+      </div>
+      <div class="form-row"><div class="form-group full"><label>大车费附加（自动计算）</label><input type="text" id="zcDacheExtra" readonly placeholder="根据线路自动计算"></div></div>
+      <div class="form-row zc-total-row"><div class="form-group full"><label>🧾 整车费用明细合计</label><input type="text" id="zcCostTotal" readonly placeholder="大车费+直送费+掏箱费+装卸费+大车费附加"></div></div>
+    </div>
+    <div class="cost-group" id="zcChaizhuangRow" style="display:none;">
+      <div class="cost-group-title">📐 整车整车拆装附加费</div>
+      <div class="form-row"><div class="form-group full"><label>整车拆装附加（自动计算）</label><input type="text" id="zcChaizhuangFee" readonly placeholder="=(重量−31.5)×零担货类单价，重量≤31.5时为0"></div></div>
+    </div>
+  </div>
+</div>
+
+<!-- 第3步：运费与成本 -->
+<div class="step-card">
+  <div class="step-title"><span class="badge">3</span> 运费与成本</div>
+  <div class="form-row"><div class="form-group full"><label>基本运费（收入）</label><input type="number" step="0.01" min="0" id="baseFreightInput" placeholder="输入基本运费"></div></div>
+  <div class="divider"></div>
+  <div style="font-size:13px;color:#888;margin-bottom:10px;">手动输入成本项（无则填0）</div>
+  <div class="cost-group">
+    <div class="cost-group-title">🚚 运输相关费用</div>
+    <div class="form-row">
+      <div class="form-group"><label>小车费</label><input type="number" step="0.01" min="0" id="xiaocheInput"></div>
+      <div class="form-group"><label>代理费（回扣）</label><input type="number" step="0.01" min="0" id="dailiInput"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group full"><label>中转费</label><input type="number" step="0.01" min="0" id="zhongzhuanInput"></div>
+    </div>
+  </div>
+  <div class="cost-group collapsible-group collapsed" id="otherCostGroup">
+    <div class="cost-group-title" onclick="toggleOtherCost()">📝 其他费用 <span class="arrow">▼</span></div>
+    <div class="cg-body">
+      <div class="form-row">
+        <div class="form-group"><label>其他支出（货损+抹零）</label><input type="number" step="0.01" min="0" id="otherExpenseInput"></div>
+        <div class="form-group"><label>其他费用（服务费）</label><input type="number" step="0.01" min="0" id="otherFeeInput"></div>
+      </div>
+    </div>
+  </div>
+  <div class="btn-row">
+    <button class="action-btn btn-primary" style="flex:1;" onclick="saveRecord()">💾 保存本单记录</button>
+    <button class="action-btn btn-outline" onclick="resetAll()">🔄 重置</button>
+  </div>
+</div>
+
+<!-- 第4步：计算结果 -->
+<div class="step-card">
+  <div class="step-title"><span class="badge">4</span> 计算结果</div>
+  <div class="result-area">
+    <div class="result-row revenue"><span>💰 总收入（基本运费）</span><span id="totalRevenueDisplay">0.00</span></div>
+    <div class="result-row total-cost"><span>📉 总成本</span><span id="totalCostDisplay">0.00</span></div>
+    <div class="result-row profit" id="profitRow"><span>✅ 利润</span><span id="profitDisplay">0.00</span></div>
+
+    <div class="be-box" id="breakEvenRow">
+      <div class="be-row"><span class="label">🛡️ 保本报价（不亏钱）</span><span class="value" id="breakEvenPriceDisplay">—</span></div>
+      <div class="be-row"><span class="label">💰 建议本单运费</span><span class="value" id="breakEvenFreightDisplay">—</span></div>
+      <div class="be-hint" id="breakEvenHint">请先填写重量和体积，才能计算保本单价</div>
+    </div>
+
+    <div class="cost-detail-toggle" onclick="toggleCostDetail()">📋 查看成本明细 ▼</div>
+    <div class="cost-detail" id="costDetail">
+      <div class="item"><span>小车费</span><span id="cdXiaoche">0.00</span></div>
+      <div class="item"><span>中转费</span><span id="cdZhongzhuan">0.00</span></div>
+      <div class="item"><span>代理费（回扣）</span><span id="cdDaili">0.00</span></div>
+      <div class="item"><span>其他支出</span><span id="cdOtherExpense">0.00</span></div>
+      <div class="item"><span>其他费用</span><span id="cdOtherFee">0.00</span></div>
+      <!-- 零担/汽运：装车成本 -->
+      <div class="item lingdan-only"><span>装车成本</span><span id="cdZhuangche">0.00</span></div>
+      <div class="item lingdan-only"><span>单票服务费</span><span id="cdServiceFee">0.00</span></div>
+      <div class="item lingdan-only"><span>跟单费</span><span id="cdFollowFee">0.00</span></div>
+      <!-- 整车：装车成本（可展开的下拉，嵌在成本明细内，列出大车费等明细） -->
+      <div class="item zc-only cost-sub-group collapsed" onclick="toggleCostSubDetail(this)">
+        <span>装车成本 <span class="arrow">▼</span></span>
+        <span id="cdZcCostTotal">0.00</span>
+      </div>
+      <div class="cost-sub-body">
+        <div class="item zc-only sub-item"><span>大车费（基础）</span><span id="cdZcDache">0.00</span></div>
+        <div class="item zc-only sub-item"><span>直送费</span><span id="cdZcZhisong">0.00</span></div>
+        <div class="item zc-only sub-item"><span>掏箱费</span><span id="cdZcTaoxiang">0.00</span></div>
+        <div class="item zc-only sub-item"><span>装卸费</span><span id="cdZcZhuangxie">0.00</span></div>
+        <div class="item zc-only sub-item"><span>大车费附加</span><span id="cdZcDacheExtra">0.00</span></div>
+        <div class="item zc-only sub-item"><span>整车拆装附加</span><span id="cdZcChaizhuang">0.00</span></div>
+      </div>
+      <!-- 服务费与跟单费独立显示，不计入装车成本 -->
+      <div class="item zc-only"><span>服务费</span><span id="cdZcServiceFee">0.00</span></div>
+      <div class="item zc-only"><span>跟单费</span><span id="cdZcFollowFee">0.00</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- 第5步：记录管理与统计 -->
+<div class="step-card">
+  <div class="step-title"><span class="badge">5</span> 记录管理与统计</div>
+  <div class="chip-group" id="dateChipGroup">
+    <button class="chip active" data-range="all">全部</button>
+    <button class="chip" data-range="today">今日</button>
+    <button class="chip" data-range="week">本周</button>
+    <button class="chip" data-range="month">本月</button>
+  </div>
+  <div class="form-row">
+    <div class="form-group">
+      <label>筛选业务员</label>
+      <input type="text" id="filterSales" placeholder="输入业务员姓名">
+    </div>
+    <div class="form-group">
+      <label>筛选线路</label>
+      <select id="filterRoute">
+        <option value="">全部线路</option>
+        <option value="zibo">淄博 → 广州</option>
+        <option value="jinan">济南 → 广州</option>
+        <option value="shijiazhuang">石家庄 → 广州</option>
+        <option value="cangzhou">沧州 → 广州</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>筛选运输方式</label>
+      <select id="filterTransport">
+        <option value="">全部方式</option>
+        <option value="lingdan">零担</option>
+        <option value="zhengche">整车</option>
+        <option value="zhengche-拆装">整车拆装</option>
+        <option value="qiyun">汽运</option>
+        <option value="sanzhi">三志汽运</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="tabs" style="margin-top:16px;">
+    <div class="tab active" data-tab="summary">📊 汇总统计</div>
+    <div class="tab" data-tab="records">📋 明细记录</div>
+  </div>
+
+  <div id="summaryPanel">
+    <div class="tabs" style="margin-top:0;">
+      <div class="tab active" data-summary="sales">按业务员</div>
+      <div class="tab" data-summary="route">按线路</div>
+      <div class="tab" data-summary="transport">按运输方式</div>
+    </div>
+    <div id="summaryContent"></div>
+  </div>
+
+  <div id="recordsPanel" style="display:none;">
+    <div id="recordsList"></div>
+  </div>
+
+  <div class="btn-row" style="margin-top:16px;">
+    <button class="action-btn btn-primary" style="flex:1;" onclick="exportExcel()">⬇️ 导出 Excel（明细+汇总）</button>
+  </div>
+</div>
+
+<div class="footer-note">本程序为测试版本，仅供内部试用，所有数据仅供参考。</div>
+<div style="text-align:center;margin-top:20px;">
+  <button class="btn-ghost" onclick="openAdminLogin()">📊 成本价格修改</button>
+</div>
+
+</div>
+
+<!-- 验证弹窗 -->
+<div class="modal-mask" id="adminLoginModal">
+  <div class="modal">
+    <div class="modal-title">🔐 验证</div>
+    <div class="modal-body">
+      <label style="display:block;font-size:13px;font-weight:500;color:#555;margin-bottom:6px;">输入密码</label>
+      <input type="password" id="adminPassword" placeholder="请输入密码" autocomplete="off">
+      <p id="adminLoginErr" style="color:#c0392b;font-size:13px;margin-top:8px;min-height:18px;"></p>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-outline" onclick="closeAdminLogin()">取消</button>
+      <button class="btn-primary" onclick="verifyAdmin()">进入</button>
+    </div>
+  </div>
+</div>
+
+<!-- 价格表编辑弹窗 -->
+<div class="modal-mask" id="priceEditorModal">
+  <div class="modal modal-lg">
+    <div class="modal-title">⚙ 成本价格修改<button class="modal-close" onclick="closePriceEditor()">×</button></div>
+    <div class="modal-body no-pad"><div id="priceEditorContent"></div></div>
+    <div class="modal-footer">
+      <button class="btn-outline" onclick="document.getElementById('csvImportInput').click()">📥 导入CSV</button>
+      <button class="btn-outline" onclick="resetPriceTable()">恢复默认</button>
+      <button class="btn-primary" onclick="savePrices()">保存并生效</button>
+    </div>
+  </div>
+</div>
+<input type="file" id="csvImportInput" accept=".csv,.txt" style="display:none;">
+
+<script>
+/* ===================== 价格表 ===================== */
+const DEFAULT_PRICE_TABLE = {
+  jinan:          { A: { qichen: 295, shiyuan: 315 }, B: 315, C: 340, D: 370, E: 430, F: 480 },
+  zibo:           { A: 305, B: 325, C: 350, D: 380, E: 440, F: 490 },
+  shijiazhuang:   { A: 300, B: 320, C: 345, D: 375, E: 435, F: 485 },
+  cangzhou:       { A: 340, B: 360, C: 390, D: 430, E: 480, F: 520 }
+};
+const DUAL_A_ROUTES = ['jinan'];
+const ADMIN_PASSWORD = 'hmc001';
+const SERVICE_FEE_PER_TON = 2.75;
+const FOLLOW_FEE = 100;
+const DACHE_EXTRA = { zibo: 100, jinan: 0, shijiazhuang: 200, cangzhou: 0 };
+const routeNames = { jinan:'济南→广州', zibo:'淄博→广州', shijiazhuang:'石家庄→广州', cangzhou:'沧州→广州' };
+const transportNames = { lingdan:'零担', zhengche:'整车', 'zhengche-拆装':'整车拆装', qiyun:'汽运', sanzhi:'三志汽运' };
+
+function getPriceTable() {
+  let parsed = null;
+  try { const raw = localStorage.getItem('price_table'); if (raw) parsed = JSON.parse(raw); } catch(e) { parsed = null; }
+  if (!parsed || typeof parsed !== 'object') {
+    parsed = JSON.parse(JSON.stringify(DEFAULT_PRICE_TABLE));
+    savePriceTable(parsed); return parsed;
+  }
+  for (const r of Object.keys(DEFAULT_PRICE_TABLE)) {
+    if (!parsed[r] || typeof parsed[r] !== 'object') parsed[r] = {};
+    for (const c of ['A','B','C','D','E','F']) {
+      if (parsed[r][c] === undefined || parsed[r][c] === null) parsed[r][c] = DEFAULT_PRICE_TABLE[r][c];
+    }
+    if (typeof parsed[r].A === 'object' && parsed[r].A !== null) {
+      if (!('qichen' in parsed[r].A)) parsed[r].A.qichen = DEFAULT_PRICE_TABLE[r].A.qichen ?? DEFAULT_PRICE_TABLE[r].A;
+      if (!('shiyuan' in parsed[r].A)) parsed[r].A.shiyuan = parsed[r].A.qichen;
+    } else {
+      const v = (typeof DEFAULT_PRICE_TABLE[r].A === 'object' && DEFAULT_PRICE_TABLE[r].A !== null)
+        ? DEFAULT_PRICE_TABLE[r].A.qichen : DEFAULT_PRICE_TABLE[r].A;
+      parsed[r].A = { qichen: v, shiyuan: v };
+    }
+  }
+  return parsed;
+}
+function savePriceTable(table) {
+  try { localStorage.setItem('price_table', JSON.stringify(table)); }
+  catch(e) { alert('保存失败：浏览器存储空间已满或已禁用，请检查后重试。'); }
+}
+
+/* ===================== DOM ===================== */
+const $ = id => document.getElementById(id);
+const routeSelect = $('routeSelect'), transportSelect = $('transportSelect');
+const weightInput = $('weightInput'), volumeInput = $('volumeInput');
+const ratioRow = $('ratioRow'), ratioDisplay = $('ratioDisplay'), classDisplay = $('classDisplay');
+const jinanAContainer = $('jinanAContainer'), jinanASelect = $('jinanASelect');
+const lingdanQiyunArea = $('lingdanQiyunArea'), zhengcheArea = $('zhengcheArea');
+const sanzhiArea = $('sanzhiArea'), qiyunExtraArea = $('qiyunExtraArea');
+const zcDacheInput = $('zcDacheInput'), zcZhisongInput = $('zcZhisongInput');
+const zcTaoxiangInput = $('zcTaoxiangInput'), zcZhuangxieInput = $('zcZhuangxieInput'), zcDacheExtra = $('zcDacheExtra');
+const zcChaizhuangRow = $('zcChaizhuangRow'), zcChaizhuangFee = $('zcChaizhuangFee');
+const szWeightInput = $('szWeightInput'), szZhuangxieInput = $('szZhuangxieInput'), sanzhiTypeSelect = $('sanzhiTypeSelect');
+const qyZhuangxieInput = $('qyZhuangxieInput');
+const chezhuangWrap = $('chezhuangWrap'), chezhuangType = $('chezhuangType');
+const baseFreightInput = $('baseFreightInput');
+const xiaocheInput = $('xiaocheInput'), zhongzhuanInput = $('zhongzhuanInput'), dailiInput = $('dailiInput');
+const otherExpenseInput = $('otherExpenseInput'), otherFeeInput = $('otherFeeInput');
+const totalRevenueDisplay = $('totalRevenueDisplay'), totalCostDisplay = $('totalCostDisplay');
+const profitDisplay = $('profitDisplay'), profitRow = $('profitRow');
+const salesInput = $('salesInput'), salesSuggestions = $('salesSuggestions');
+const breakEvenPriceDisplay = $('breakEvenPriceDisplay');
+const breakEvenFreightDisplay = $('breakEvenFreightDisplay');
+const breakEvenHint = $('breakEvenHint');
+
+/* ===================== 运输方式 ===================== */
+const ALL_TRANSPORTS = ['lingdan','zhengche','qiyun','sanzhi'];
+const TRANSPORT_LABEL = { lingdan:'零担', zhengche:'整车', qiyun:'汽运', sanzhi:'三志汽运' };
+function refreshTransportOptions() {
+  if (_refreshing) return;
+  _refreshing = true;
+  const route = routeSelect.value;
+  const prev = transportSelect.value;
+  transportSelect.innerHTML = '';
+  const modes = (route === 'zibo') ? ALL_TRANSPORTS : ['lingdan','zhengche'];
+  modes.forEach(m => {
+    const o = document.createElement('option');
+    o.value = m; o.textContent = TRANSPORT_LABEL[m];
+    transportSelect.appendChild(o);
+  });
+  transportSelect.value = modes.includes(prev) ? prev : modes[0];
+  _refreshing = false;
+}
+
+/* ===================== 存储 ===================== */
+const STORAGE_KEY = 'logistics_profit_records_v1';
+const SALES_KEY = 'logistics_sales_names_v1';
+let records = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+let salesNames = JSON.parse(localStorage.getItem(SALES_KEY) || '[]');
+let priceTable = getPriceTable();
+function persist() { localStorage.setItem(STORAGE_KEY, JSON.stringify(records)); }
+function persistSales() { localStorage.setItem(SALES_KEY, JSON.stringify(salesNames)); }
+
+/* ===================== 业务员补全 ===================== */
+salesInput.addEventListener('input', () => {
+  const val = salesInput.value.trim();
+  if (!val) { salesSuggestions.classList.remove('show'); return; }
+  const matches = salesNames.filter(n => n.includes(val)).slice(0, 6);
+  if (matches.length) {
+    salesSuggestions.innerHTML = matches.map(n => `<div class="item" data-name="${n}">${n}</div>`).join('');
+    salesSuggestions.classList.add('show');
+  } else salesSuggestions.classList.remove('show');
+});
+salesSuggestions.addEventListener('click', e => {
+  if (e.target.classList.contains('item')) { salesInput.value = e.target.dataset.name; salesSuggestions.classList.remove('show'); }
+});
+document.addEventListener('click', e => { if (!e.target.closest('.form-group')) salesSuggestions.classList.remove('show'); });
+
+/* ===================== 工具函数 ===================== */
+function getClassPrice(route, cls, aSupplier) {
+  const t = priceTable[route];
+  if (!t) return 0;
+  if (cls === 'A' && DUAL_A_ROUTES.includes(route) && typeof t.A === 'object') {
+    return aSupplier === 'shiyuan' ? (t.A.shiyuan || 0) : (t.A.qichen || 0);
+  }
+  return t[cls] || 0;
+}
+function matchClass(ratio) {
+  if (!isFinite(ratio) || ratio <= 0) return null;
+  if (ratio <= 1.5) return 'A';
+  if (ratio <= 2)   return 'B';
+  if (ratio <= 2.5) return 'C';
+  if (ratio <= 3)   return 'D';
+  if (ratio <= 4)   return 'E';
+  return 'F';
+}
+/* 超方加价：每吨占方（比重）超过 9 时，货类单价需加上超出部分 × 30 元/吨 */
+const OVER_RATIO_THRESHOLD = 9;
+const OVER_RATIO_RATE = 30;
+function getOverRatioSurcharge(ratio) {
+  if (!isFinite(ratio) || ratio <= OVER_RATIO_THRESHOLD) return 0;
+  return (ratio - OVER_RATIO_THRESHOLD) * OVER_RATIO_RATE;
+}
+/* 获取实际货类单价（含超方加价） */
+function getClassPriceActual(route, ratio, aSupplier) {
+  const cls = matchClass(ratio);
+  const base = cls ? getClassPrice(route, cls, aSupplier) : 0;
+  return base + getOverRatioSurcharge(ratio);
+}
+function getTransportKey() {
+  const t = transportSelect.value;
+  if (t === 'zhengche') return chezhuangType.value === '整车拆装' ? 'zhengche-拆装' : 'zhengche';
+  return t;
+}
+function num(id, def) { const v = parseFloat($(id).value); return isNaN(v) ? (def === undefined ? 0 : def) : v; }
+
+/* ===================== 界面联动 ===================== */
+let _refreshing = false;
+function updateTransportUI() {
+  const t = transportSelect.value, r = routeSelect.value;
+  if (!_refreshing) { _refreshing = true; refreshTransportOptions(); _refreshing = false; }
+  lingdanQiyunArea.style.display = 'none'; ratioRow.style.display = 'none';
+  jinanAContainer.style.display = 'none'; zhengcheArea.style.display = 'none';
+  sanzhiArea.style.display = 'none'; qiyunExtraArea.style.display = 'none';
+  chezhuangWrap.style.display = 'none'; zcChaizhuangRow.style.display = 'none';
+
+  if (t === 'lingdan' || t === 'qiyun') {
+    lingdanQiyunArea.style.display = 'block'; ratioRow.style.display = 'flex';
+    if (r === 'jinan') jinanAContainer.style.display = 'block';
+    if (t === 'qiyun') qiyunExtraArea.style.display = 'block';
+  } else if (t === 'zhengche') {
+    zhengcheArea.style.display = 'block';
+    if (r === 'shijiazhuang' || r === 'cangzhou') chezhuangWrap.style.display = 'flex';
+    // 整车拆装附加：所有地区（淄博/石家庄/沧州）整车拆装模式都显示并计算
+    if (chezhuangType.value === '整车拆装') zcChaizhuangRow.style.display = 'block';
+    updateZhengcheExtra();
+  } else if (t === 'sanzhi') {
+    sanzhiArea.style.display = 'block';
+  }
+  // 切换成本明细的显示模式：零担/汽运显示装车成本，整车显示大车费等
+  const cd = $('costDetail');
+  if (cd) {
+    cd.classList.remove('zc-mode', 'lingdan-mode');
+    if (t === 'zhengche') cd.classList.add('zc-mode');
+    else cd.classList.add('lingdan-mode');
+  }
+  recalc();
+}
+function updateZhengcheExtra() {
+  const r = routeSelect.value;
+  zcDacheExtra.value = (DACHE_EXTRA[r] || 0) + ' 元';
+}
+function toggleCostDetail() {
+  const d = $('costDetail');
+  d.classList.toggle('show');
+  event.target.textContent = d.classList.contains('show') ? '📋 收起成本明细 ▲' : '📋 查看成本明细 ▼';
+}
+
+function toggleOtherCost() {
+  const g = $('otherCostGroup');
+  if (g) g.classList.toggle('collapsed');
+}
+/* 整车：成本明细内“装车成本”下拉（大车费等明细） */
+function toggleCostSubDetail(el) {
+  if (!el || !el.classList.contains('cost-sub-group')) return;
+  el.classList.toggle('collapsed');
+}
+
+/* ===================== 计算核心 ===================== */
+function recalc() {
+  const route = routeSelect.value;
+  const transport = transportSelect.value;
+  const weight = num('weightInput');
+  const volume = num('volumeInput');
+
+  /* ---- 零担/汽运：比重 + 货类 ---- */
+  let ratio = 0, cls = null, classPrice = 0, zhuangcheCost = 0, serviceFee = 0, followFee = 0;
+  if ((transport === 'lingdan' || transport === 'qiyun') && weight > 0) {
+    ratio = volume / weight;
+    cls = matchClass(ratio);
+    classPrice = getClassPriceActual(route, ratio, jinanASelect.value);
+    zhuangcheCost = classPrice * weight;
+    serviceFee = SERVICE_FEE_PER_TON * weight;
+  }
+  if (transport === 'lingdan' || transport === 'qiyun') {
+    ratioDisplay.value = (weight > 0 && volume > 0) ? ratio.toFixed(2) + ' 方/吨' : '';
+    if (cls && weight > 0 && volume > 0) {
+      let priceLabel = cls + '类 ' + classPrice.toFixed(2) + ' 元/吨';
+      const sur = getOverRatioSurcharge(ratio);
+      if (sur > 0) priceLabel += '（含超方加价 ' + sur.toFixed(2) + ' 元/吨）';
+      classDisplay.value = priceLabel;
+    } else if (weight > 0 && volume > 0) {
+      // 比重超出 F 类上限（>4）仍统一归 F 类，不应出现匹配不上
+      let priceLabel = cls + '类 ' + classPrice.toFixed(2) + ' 元/吨';
+      const sur = getOverRatioSurcharge(ratio);
+      if (sur > 0) priceLabel += '（含超方加价 ' + sur.toFixed(2) + ' 元/吨）';
+      classDisplay.value = priceLabel;
+    } else {
+      classDisplay.value = '';
+    }
+  }
+
+  /* ---- 手动成本 ---- */
+  const xiaoche = num('xiaocheInput'), zhongzhuan = num('zhongzhuanInput'), daili = num('dailiInput');
+  const otherExpense = num('otherExpenseInput'), otherFee = num('otherFeeInput');
+
+  /* ---- 整车 ---- */
+  let zcCost = 0, zcChaizhuang = 0, zcServiceFee = 0, zcFollowFee = 0;
+  if (transport === 'zhengche') {
+    zcCost = num('zcDacheInput') + num('zcZhisongInput') + num('zcTaoxiangInput') + num('zcZhuangxieInput') + (DACHE_EXTRA[route] || 0);
+    const isChaizhuang = chezhuangType.value === '整车拆装';
+    // 整车拆装附加：所有地区（淄博/石家庄/沧州）整车拆装模式都计算（按重量匹配的零担货类单价，含超方加价）
+    if (isChaizhuang) {
+      const r2 = weight > 0 ? volume / weight : 0;
+      const cp = getClassPriceActual(route, r2, jinanASelect.value);
+      zcChaizhuang = Math.max(weight - 31.5, 0) * cp;
+      zcChaizhuangFee.value = zcChaizhuang.toFixed(2) + ' 元';
+    } else {
+      zcChaizhuangFee.value = '';
+    }
+    // 服务费：所有地区整车（普通/拆装）统一 30 元
+    zcServiceFee = 30;
+    // 跟单费：仅淄博整车（普通/拆装）30 元，其他地区无
+    if (route === 'zibo') zcFollowFee = 30;
+  }
+
+  /* ---- 三志汽运 ---- */
+  let sanzhiCost = 0;
+  if (transport === 'sanzhi') {
+    const szPrice = sanzhiTypeSelect.value === 'cotton' ? 450 : 350;
+    const szW = num('szWeightInput');
+    sanzhiCost = szPrice * szW + num('szZhuangxieInput') + SERVICE_FEE_PER_TON * szW;
+  }
+
+  /* ---- 汽运装卸费 ---- */
+  const qyCost = transport === 'qiyun' ? num('qyZhuangxieInput') : 0;
+
+  /* ---- 总成本 ---- */
+  const totalManual = xiaoche + zhongzhuan + daili + otherExpense + otherFee;
+  const totalCost = totalManual + zhuangcheCost + serviceFee + followFee + zcCost + zcChaizhuang + zcServiceFee + zcFollowFee + sanzhiCost + qyCost;
+
+  /* ---- 利润 ---- */
+  const revenue = num('baseFreightInput');
+  const profit = revenue - totalCost;
+
+  /* ---- 保本报价：保本报价 = 总成本 / 重量 ---- */
+  let beText = '—', beFreightText = '—', beHint = '请先填写重量和体积，才能计算保本单价';
+  if (weight > 0 && totalCost > 0) {
+    const be = totalCost / weight;
+    beText = be.toFixed(2) + ' 元/吨';
+    beFreightText = totalCost.toFixed(2) + ' 元以上';
+    beHint = '保本报价 = 总成本 ' + totalCost.toFixed(2) + ' 元 ÷ 重量 ' + weight.toFixed(2) + ' 吨 = ' + be.toFixed(2) + ' 元/吨';
+  }
+
+  /* ---- 渲染 ---- */
+  totalRevenueDisplay.textContent = revenue.toFixed(2);
+  totalCostDisplay.textContent = totalCost.toFixed(2);
+  profitDisplay.textContent = profit.toFixed(2);
+  profitRow.className = 'result-row profit' + (profit < 0 ? ' negative' : ' positive');
+  breakEvenPriceDisplay.textContent = beText;
+  breakEvenFreightDisplay.textContent = beFreightText;
+  breakEvenHint.textContent = beText === '—' ? '请先填写重量和体积，才能计算保本单价' : beHint;
+
+  /* ---- 成本明细 ---- */
+  $('cdXiaoche').textContent = xiaoche.toFixed(2);
+  $('cdZhongzhuan').textContent = zhongzhuan.toFixed(2);
+  $('cdDaili').textContent = daili.toFixed(2);
+  $('cdOtherExpense').textContent = otherExpense.toFixed(2);
+  $('cdOtherFee').textContent = otherFee.toFixed(2);
+  $('cdZhuangche').textContent = zhuangcheCost.toFixed(2);
+  $('cdServiceFee').textContent = serviceFee.toFixed(2);
+  $('cdFollowFee').textContent = followFee.toFixed(2);
+  // 整车明细：大车费/直送费/掏箱费/装卸费/大车费附加/整车拆装附加/服务费/跟单费 分项列出
+  $('cdZcDache').textContent = num('zcDacheInput').toFixed(2);
+  $('cdZcZhisong').textContent = num('zcZhisongInput').toFixed(2);
+  $('cdZcTaoxiang').textContent = num('zcTaoxiangInput').toFixed(2);
+  $('cdZcZhuangxie').textContent = num('zcZhuangxieInput').toFixed(2);
+  $('cdZcDacheExtra').textContent = (DACHE_EXTRA[route] || 0).toFixed(2);
+  $('cdZcChaizhuang').textContent = zcChaizhuang.toFixed(2);
+  $('cdZcServiceFee').textContent = zcServiceFee.toFixed(2);
+  $('cdZcFollowFee').textContent = zcFollowFee.toFixed(2);
+  // 装车成本合计：只含运输类6项（大车费/直送费/掏箱费/装卸费/大车费附加/整车拆装附加），服务费与跟单费不计入
+  $('cdZcCostTotal').textContent = (zcCost + zcChaizhuang).toFixed(2);
+}
+
+/* ===================== 保存/重置 ===================== */
+function saveRecord() {
+  const sales = salesInput.value.trim();
+  if (!sales) { alert('请填写业务员'); return; }
+  const weight = num('weightInput'), volume = num('volumeInput');
+  if (weight <= 0 || volume <= 0) { alert('请填写重量和体积（不能为0）'); return; }
+  const rec = {
+    id: Date.now(),
+    time: new Date().toLocaleString('zh-CN'),
+    route: routeSelect.value,
+    routeName: routeNames[routeSelect.value],
+    transport: getTransportKey(),
+    transportName: transportNames[getTransportKey()] || '',
+    sales,
+    weight, volume,
+    revenue: num('baseFreightInput'),
+    cost: num('baseFreightInput') - recalcProfit(),
+    profit: recalcProfit(),
+    detail: {
+      xiaoche: num('xiaocheInput'), zhongzhuan: num('zhongzhuanInput'), daili: num('dailiInput'),
+      otherExpense: num('otherExpenseInput'), otherFee: num('otherFeeInput')
+    }
+  };
+  records.unshift(rec);
+  persist();
+  if (!salesNames.includes(sales)) { salesNames.push(sales); persistSales(); }
+  renderRecords(); renderSummary();
+  alert('保存成功');
+}
+function recalcProfit() {
+  // 复用 recalc 的结果：直接重算一次取 profit
+  const route = routeSelect.value, transport = transportSelect.value;
+  const weight = num('weightInput'), volume = num('volumeInput');
+  let zhuangcheCost = 0, serviceFee = 0, followFee = 0;
+  if ((transport === 'lingdan' || transport === 'qiyun') && weight > 0) {
+    const ratio = volume / weight;
+    zhuangcheCost = getClassPriceActual(route, ratio, jinanASelect.value) * weight;
+    serviceFee = SERVICE_FEE_PER_TON * weight;
+  }
+  const totalManual = num('xiaocheInput') + num('zhongzhuanInput') + num('dailiInput') + num('otherExpenseInput') + num('otherFeeInput');
+  let zcCost = 0, zcChaizhuang = 0, zcServiceFee = 0, zcFollowFee = 0;
+  if (transport === 'zhengche') {
+    zcCost = num('zcDacheInput') + num('zcZhisongInput') + num('zcTaoxiangInput') + num('zcZhuangxieInput') + (DACHE_EXTRA[route] || 0);
+    const isChaizhuang = chezhuangType.value === '整车拆装';
+    // 整车拆装附加：所有地区（淄博/石家庄/沧州）整车拆装模式都计算
+    if (isChaizhuang) {
+      const r2 = weight > 0 ? volume / weight : 0;
+      const cp = getClassPriceActual(route, r2, jinanASelect.value);
+      zcChaizhuang = Math.max(weight - 31.5, 0) * cp;
+    }
+    zcServiceFee = 30;
+    if (route === 'zibo') zcFollowFee = 30;
+  }
+  let sanzhiCost = 0;
+  if (transport === 'sanzhi') {
+    const szPrice = sanzhiTypeSelect.value === 'cotton' ? 450 : 350;
+    sanzhiCost = szPrice * num('szWeightInput') + num('szZhuangxieInput') + SERVICE_FEE_PER_TON * num('szWeightInput');
+  }
+  const qyCost = transport === 'qiyun' ? num('qyZhuangxieInput') : 0;
+  const totalCost = totalManual + zhuangcheCost + serviceFee + followFee + zcCost + zcChaizhuang + zcServiceFee + zcFollowFee + sanzhiCost + qyCost;
+  return num('baseFreightInput') - totalCost;
+}
+function resetAll() {
+  ['weightInput','volumeInput','baseFreightInput','xiaocheInput','zhongzhuanInput','dailiInput','otherExpenseInput','otherFeeInput',
+   'zcDacheInput','zcZhisongInput','zcTaoxiangInput','zcZhuangxieInput','zcChaizhuangFee',
+   'qyZhuangxieInput','szWeightInput','szZhuangxieInput'].forEach(id => $(id).value = '');
+  ratioDisplay.value = ''; classDisplay.value = '';
+  recalc();
+}
+
+/* ===================== 记录管理 ===================== */
+let currentRange = 'all';
+document.querySelectorAll('#dateChipGroup .chip').forEach(c => {
+  c.addEventListener('click', () => {
+    document.querySelectorAll('#dateChipGroup .chip').forEach(x => x.classList.remove('active'));
+    c.classList.add('active'); currentRange = c.dataset.range; renderRecords();
+  });
+});
+function inRange(dateStr) {
+  const d = new Date(dateStr.replace(/\//g, '-'));
+  const now = new Date();
+  if (currentRange === 'today') return d.toDateString() === now.toDateString();
+  if (currentRange === 'week') {
+    const start = new Date(now); start.setDate(now.getDate() - now.getDay()); start.setHours(0,0,0,0);
+    return d >= start;
+  }
+  if (currentRange === 'month') return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+  return true;
+}
+function getFilters() {
+  return {
+    sales: $('filterSales').value.trim(),
+    route: $('filterRoute').value,
+    transport: $('filterTransport').value
+  };
+}
+function renderRecords() {
+  const { sales, route, transport } = getFilters();
+  let list = records.filter(r => inRange(r.time));
+  if (sales) list = list.filter(r => r.sales.includes(sales));
+  if (route) list = list.filter(r => r.route === route);
+  if (transport) list = list.filter(r => r.transport === transport);
+  const box = $('recordsList');
+  if (!list.length) { box.innerHTML = '<div class="empty-tip">暂无符合条件的记录</div>'; return; }
+  box.innerHTML = list.map(r => `
+    <div class="record-item">
+      <div class="top">
+        <span class="name">${r.sales} · ${r.routeName}</span>
+        <span class="profit-tag ${r.profit >= 0 ? 'p' : 'n'}">${r.profit >= 0 ? '盈' : '亏'} ${r.profit.toFixed(2)}</span>
+      </div>
+      <div class="meta">${r.time} · ${r.transportName} · 重量${r.weight}t 体积${r.volume}m³<br>运费 ${r.revenue.toFixed(2)} · 成本 ${r.cost.toFixed(2)}</div>
+      <div class="del" data-id="${r.id}">删除</div>
+    </div>`).join('');
+  box.querySelectorAll('.del').forEach(b => b.addEventListener('click', () => {
+    records = records.filter(r => r.id !== parseInt(b.dataset.id)); persist(); renderRecords(); renderSummary();
+  }));
+}
+function renderSummary() {
+  const { sales, route, transport } = getFilters();
+  let list = records.filter(r => inRange(r.time));
+  if (sales) list = list.filter(r => r.sales.includes(sales));
+  if (route) list = list.filter(r => r.route === route);
+  if (transport) list = list.filter(r => r.transport === transport);
+  const groups = {};
+  list.forEach(r => {
+    const key = currentSummary === 'sales' ? r.sales : currentSummary === 'route' ? r.routeName : r.transportName;
+    if (!groups[key]) groups[key] = { revenue: 0, cost: 0, profit: 0, count: 0 };
+    groups[key].revenue += r.revenue; groups[key].cost += r.cost; groups[key].profit += r.profit; groups[key].count += 1;
+  });
+  const keys = Object.keys(groups);
+  const box = $('summaryContent');
+  if (!keys.length) { box.innerHTML = '<div class="empty-tip">暂无数据</div>'; return; }
+  box.innerHTML = `
+    <table class="summary-table">
+      <thead><tr><th>分组</th><th>票数</th><th>运费</th><th>成本</th><th>利润</th></tr></thead>
+      <tbody>
+        ${keys.map(k => {
+          const g = groups[k];
+          return `<tr><td>${k}</td><td>${g.count}</td><td>${g.revenue.toFixed(2)}</td><td>${g.cost.toFixed(2)}</td>
+            <td class="${g.profit >= 0 ? 'pos' : 'neg'}">${g.profit.toFixed(2)}</td></tr>`;
+        }).join('')}
+      </tbody>
+    </table>
+    <div class="total-line"><span>合计（${list.length} 票）</span><span class="${list.reduce((s,r)=>s+r.profit,0)>=0?'pos':'neg'}" style="color:${list.reduce((s,r)=>s+r.profit,0)>=0?'#1a7a3a':'#c0392b'}">${list.reduce((s,r)=>s+r.profit,0).toFixed(2)}</span></div>`;
+}
+document.querySelectorAll('#summaryPanel .tab').forEach(t => {
+  t.addEventListener('click', () => {
+    document.querySelectorAll('#summaryPanel .tab').forEach(x => x.classList.remove('active'));
+    t.classList.add('active'); currentSummary = t.dataset.summary; renderSummary();
+  });
+});
+document.querySelectorAll('.tab[data-tab]').forEach(t => {
+  t.addEventListener('click', () => {
+    document.querySelectorAll('.tab[data-tab]').forEach(x => x.classList.remove('active'));
+    t.classList.add('active');
+    $('summaryPanel').style.display = t.dataset.tab === 'summary' ? 'block' : 'none';
+    $('recordsPanel').style.display = t.dataset.tab === 'records' ? 'block' : 'none';
+    if (t.dataset.tab === 'records') renderRecords(); else renderSummary();
+  });
+});
+['filterSales','filterRoute','filterTransport'].forEach(id => $(id).addEventListener('input', () => { renderRecords(); renderSummary(); }));
+
+/* ===================== 导出 Excel ===================== */
+function exportExcel() {
+  const data = records.map(r => ({
+    '时间': r.time, '业务员': r.sales, '线路': r.routeName, '运输方式': r.transportName,
+    '重量(t)': r.weight, '体积(m³)': r.volume, '运费': r.revenue, '成本': r.cost, '利润': r.profit
+  }));
+  const ws = XLSX.utils.json_to_sheet(data);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, '明细记录');
+  // 汇总
+  const groups = {};
+  records.forEach(r => {
+    [r.sales, r.routeName, r.transportName].forEach((k, i) => {
+      const key = (i===0?'业务员:':'')+(i===1?'线路:':'')+(i===2?'方式:':'')+k;
+      if (!groups[key]) groups[key] = { revenue: 0, cost: 0, profit: 0 };
+      groups[key].revenue += r.revenue; groups[key].cost += r.cost; groups[key].profit += r.profit;
+    });
+  });
+  const sumData = Object.keys(groups).map(k => ({ '分组': k, '运费': groups[k].revenue, '成本': groups[k].cost, '利润': groups[k].profit }));
+  const ws2 = XLSX.utils.json_to_sheet(sumData);
+  XLSX.utils.book_append_sheet(wb, ws2, '汇总统计');
+  XLSX.writeFile(wb, '业务利润记录.xlsx');
+}
+
+/* ===================== 价格表编辑（管理员） ===================== */
+function openAdminLogin() { $('adminLoginModal').classList.add('show'); $('adminPassword').value = ''; $('adminLoginErr').textContent = ''; }
+function closeAdminLogin() { $('adminLoginModal').classList.remove('show'); }
+function verifyAdmin() {
+  if ($('adminPassword').value === ADMIN_PASSWORD) { closeAdminLogin(); openPriceEditor(); }
+  else $('adminLoginErr').textContent = '密码错误，请重试';
+}
+function openPriceEditor() {
+  $('priceEditorModal').classList.add('show');
+  const box = $('priceEditorContent');
+  let html = '';
+  Object.keys(priceTable).forEach(route => {
+    const t = priceTable[route];
+    html += `<div class="pe-route-block"><div class="pe-route-head"><span>${routeNames[route] || route}</span></div><div class="pe-grid">`;
+    ['A','B','C','D','E','F'].forEach(c => {
+      if (c === 'A' && DUAL_A_ROUTES.includes(route) && typeof t.A === 'object') {
+        html += `<div class="pe-cell"><label>A类-启辰</label><input type="number" data-route="${route}" data-key="A-qichen" value="${t.A.qichen}"></div>`;
+        html += `<div class="pe-cell"><label>A类-实源</label><input type="number" data-route="${route}" data-key="A-shiyuan" value="${t.A.shiyuan}"></div>`;
+      } else {
+        html += `<div class="pe-cell"><label>${c}类</label><input type="number" data-route="${route}" data-key="${c}" value="${t[c]}"></div>`;
+      }
+    });
+    html += `</div></div>`;
+  });
+  box.innerHTML = html + '<div class="pe-tip">修改后点击"保存并生效"，数据保存在本浏览器本地。可点击"导入CSV"批量导入。</div>';
+}
+function closePriceEditor() { $('priceEditorModal').classList.remove('show'); }
+function savePrices() {
+  const inputs = document.querySelectorAll('#priceEditorContent input[data-route]');
+  inputs.forEach(inp => {
+    const route = inp.dataset.route, key = inp.dataset.key;
+    const val = parseFloat(inp.value);
+    if (isNaN(val)) { inp.classList.add('invalid'); return; }
+    inp.classList.remove('invalid');
+    if (key.startsWith('A-')) {
+      const sub = key.split('-')[1];
+      if (typeof priceTable[route].A !== 'object' || priceTable[route].A === null) priceTable[route].A = {};
+      priceTable[route].A[sub] = val;
+    } else {
+      priceTable[route][key] = val;
+    }
+  });
+  savePriceTable(priceTable);
+  closePriceEditor();
+  recalc();
+  alert('价格表已保存并生效');
+}
+function resetPriceTable() {
+  if (confirm('确定恢复默认价格表？')) {
+    priceTable = JSON.parse(JSON.stringify(DEFAULT_PRICE_TABLE));
+    savePriceTable(priceTable);
+    openPriceEditor();
+    recalc();
+  }
+}
+$('csvImportInput').addEventListener('change', e => {
+  const file = e.target.files[0]; if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    try {
+      const lines = ev.target.result.split(/\r?\n/);
+      const next = JSON.parse(JSON.stringify(DEFAULT_PRICE_TABLE));
+      lines.forEach(line => {
+        const parts = line.split(',');
+        if (parts.length < 3) return;
+        const [route, key, val] = [parts[0].trim(), parts[1].trim(), parseFloat(parts[2])];
+        if (!next[route] || isNaN(val)) return;
+        if (key.startsWith('A-') && typeof next[route].A === 'object') next[route].A[key.split('-')[1]] = val;
+        else next[route][key] = val;
+      });
+      priceTable = next; savePriceTable(priceTable); openPriceEditor(); recalc();
+      alert('导入成功');
+    } catch(err) { alert('CSV 格式错误，请检查'); }
+  };
+  reader.readAsText(file);
+});
+
+/* ===================== 事件绑定 ===================== */
+function onRouteChange() { refreshTransportOptions(); updateTransportUI(); }
+[routeSelect, transportSelect, chezhuangType, jinanASelect, sanzhiTypeSelect].forEach(el => {
+  el.addEventListener('change', () => {
+    if (el === routeSelect) onRouteChange();
+    else updateTransportUI();
+  });
+});
+['weightInput','volumeInput','baseFreightInput','xiaocheInput','zhongzhuanInput','dailiInput',
+ 'otherExpenseInput','otherFeeInput','zcDacheInput','zcZhisongInput','zcTaoxiangInput','zcZhuangxieInput',
+ 'qyZhuangxieInput','szWeightInput','szZhuangxieInput'].forEach(id => {
+  $(id).addEventListener('input', recalc); $(id).addEventListener('change', recalc);
+});
+
+/* ===================== 初始化 ===================== */
+(function initOnce() {
+  // 保证价格表结构为最新格式（补全省份/货类/双A供应商字段），避免旧缓存导致单价取不到
+  priceTable = getPriceTable(); savePriceTable(priceTable);
+})();
+refreshTransportOptions();
+updateTransportUI();   // 先同步一次界面显示
+recalc();              // 关键：初始化时算一次，让总收入/总成本关联上已填写的数值
+renderRecords();
+renderSummary();
+</script>
+</body>
+</html>
